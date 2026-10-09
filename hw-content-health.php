@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Hostelworld Content Health
  * Description:       Finds blog articles worth refreshing and articles with no search traffic, using Google Search Console data (and Ahrefs backlinks, if connected), with reviewed, reversible actions.
- * Version:           1.13.0
+ * Version:           1.16.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Hostelworld
@@ -13,7 +13,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'HWCH_VERSION', '1.13.0' );
+define( 'HWCH_VERSION', '1.16.0' );
 define( 'HWCH_FILE', __FILE__ );
 define( 'HWCH_DIR', plugin_dir_path( __FILE__ ) );
 define( 'HWCH_URL', plugin_dir_url( __FILE__ ) );
@@ -44,6 +44,9 @@ require_once HWCH_DIR . 'includes/class-hwch-planner.php';
 require_once HWCH_DIR . 'includes/class-hwch-aio.php';
 require_once HWCH_DIR . 'includes/class-hwch-brief.php';
 require_once HWCH_DIR . 'includes/class-hwch-export.php';
+require_once HWCH_DIR . 'includes/class-hwch-import.php';
+require_once HWCH_DIR . 'includes/class-hwch-retire.php';
+require_once HWCH_DIR . 'includes/class-hwch-score.php';
 require_once HWCH_DIR . 'includes/class-hwch-ahrefs.php';
 require_once HWCH_DIR . 'includes/class-hwch-todo.php';
 require_once HWCH_DIR . 'includes/class-hwch-actions.php';
@@ -78,5 +81,6 @@ HWCH_Watchlists::init();
 HWCH_Broken::init();
 HWCH_Editor::init();
 HWCH_Export::init();
+HWCH_Import::init();
 HWCH_Ahrefs::init();
 HWCH_Admin::init();

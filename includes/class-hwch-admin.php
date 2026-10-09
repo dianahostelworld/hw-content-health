@@ -19,7 +19,7 @@ class HWCH_Admin {
 	 *
 	 * @var array
 	 */
-	const TABS = array( 'todo', 'dashboard', 'urls', 'planner', 'quickwins', 'questions', 'refresh', 'seasonal', 'impact', 'dated', 'prune', 'overlap', 'links', 'broken', 'onpage', 'tags', 'log', 'settings', 'aio', 'brief', 'ahrefs' );
+	const TABS = array( 'todo', 'dashboard', 'urls', 'planner', 'quickwins', 'questions', 'refresh', 'seasonal', 'impact', 'dated', 'prune', 'overlap', 'links', 'broken', 'onpage', 'tags', 'log', 'settings', 'aio', 'brief', 'ahrefs', 'import', 'retire' );
 
 	/**
 	 * Hooks.
@@ -199,12 +199,14 @@ class HWCH_Admin {
 				'items' => array(
 					'prune'   => __( 'Candidates to prune', 'hw-content-health' ),
 					'overlap' => __( 'Overlapping articles', 'hw-content-health' ),
+					'retire'  => __( 'Retire articles', 'hw-content-health' ),
 				),
 			),
 			array(
 				'label' => __( 'Data', 'hw-content-health' ),
 				'items' => array(
 					'ahrefs'   => __( 'Ahrefs', 'hw-content-health' ),
+					'import'   => __( 'Import', 'hw-content-health' ),
 					'impact'   => __( 'Refresh impact', 'hw-content-health' ),
 					'log'      => __( 'Log', 'hw-content-health' ),
 					'settings' => __( 'Settings', 'hw-content-health' ),
@@ -265,6 +267,7 @@ class HWCH_Admin {
 			'ignore_404'   => __( '404 ignored', 'hw-content-health' ),
 			'fix_chain'    => __( 'Redirect chain shortened', 'hw-content-health' ),
 			'fix_link'     => __( 'Link updated', 'hw-content-health' ),
+			'remove_link'  => __( 'Broken links removed', 'hw-content-health' ),
 		);
 	}
 
@@ -318,6 +321,10 @@ class HWCH_Admin {
 			HWCH_Dated::render();
 		} elseif ( 'tags' === $tab ) {
 			HWCH_Tags::render();
+		} elseif ( 'retire' === $tab ) {
+			HWCH_Retire::render();
+		} elseif ( 'import' === $tab ) {
+			HWCH_Import::render();
 		} elseif ( 'settings' === $tab ) {
 			self::settings_tab();
 		} elseif ( 'log' === $tab ) {
@@ -383,6 +390,17 @@ class HWCH_Admin {
 			'gap_dismissed'      => array( 'success', __( 'Hidden from the gaps for six months.', 'hw-content-health' ) ),
 			'undo_changed'       => array( 'error', __( 'The article has been edited since, so it was not changed back. Use the article\'s revisions to restore the old link.', 'hw-content-health' ) ),
 		);
+
+		if ( 'links_removed' === $key ) {
+			$r = get_transient( 'hwch_removed_' . get_current_user_id() );
+			/* translators: 1: links, 2: articles */
+			$messages['links_removed'] = array( 'success', is_array( $r ) ? sprintf( __( 'Removed %1$s links from %2$s articles. The linked words were kept. Each article can be undone from the Log.', 'hw-content-health' ), number_format_i18n( $r[0] ), number_format_i18n( $r[1] ) ) : __( 'Links removed. Each article can be undone from the Log.', 'hw-content-health' ) );
+		}
+		if ( 'retired' === $key ) {
+			$r = get_transient( 'hwch_retired_' . get_current_user_id() );
+			/* translators: 1: done, 2: not done */
+			$messages['retired'] = array( is_array( $r ) && $r[1] ? 'warning' : 'success', is_array( $r ) ? sprintf( __( 'Redirected and moved to draft: %1$s. Not redirected: %2$s (the target was missing, not on this site, or the article itself). Each one can be undone from the Log.', 'hw-content-health' ), number_format_i18n( $r[0] ), number_format_i18n( $r[1] ) ) : __( 'Done. Each one can be undone from the Log.', 'hw-content-health' ) );
+		}
 
 		if ( isset( $messages[ $key ] ) ) {
 			printf( '<div class="notice notice-%1$s is-dismissible"><p>%2$s</p></div>', esc_attr( $messages[ $key ][0] ), esc_html( $messages[ $key ][1] ) );
@@ -1028,6 +1046,9 @@ class HWCH_Admin {
 							<?php endif; ?>
 							<?php if ( 'fix_link' === $entry['action'] ) : ?>
 								<div class="hwch-muted"><?php echo esc_html( rawurldecode( (string) wp_parse_url( $details['old'], PHP_URL_PATH ) ) . ' → ' . rawurldecode( (string) wp_parse_url( $details['new'], PHP_URL_PATH ) ) ); ?></div>
+							<?php endif; ?>
+							<?php if ( 'remove_link' === $entry['action'] ) : ?>
+								<div class="hwch-muted"><?php echo esc_html( implode( ', ', array_map( 'rawurldecode', array_slice( (array) $details['urls'], 0, 3 ) ) ) . ( count( (array) $details['urls'] ) > 3 ? '…' : '' ) ); ?></div>
 							<?php endif; ?>
 							<?php if ( 'fix_chain' === $entry['action'] ) : ?>
 								<div class="hwch-muted"><?php echo esc_html( rawurldecode( $details['source'] ) . ' → ' . rawurldecode( (string) wp_parse_url( $details['target'], PHP_URL_PATH ) ) ); ?></div>

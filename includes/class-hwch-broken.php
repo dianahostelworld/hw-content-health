@@ -457,7 +457,7 @@ class HWCH_Broken {
 		$keys = array();
 
 		foreach ( array( 'hw_hub_', '_hw_hub_' ) as $base ) {
-			foreach ( array( '', 'country_', 'city_' ) as $template ) {
+			foreach ( array( '', 'country_', 'state_', 'city_' ) as $template ) {
 				$keys[] = $base . $template . 'hub_term';
 			}
 		}
@@ -895,6 +895,144 @@ class HWCH_Broken {
 	}
 
 	/**
+	 * Remove every link to an address from content, keeping the linked words.
+	 *
+	 * @param string $content Content.
+	 * @param string $old     Address to unlink.
+	 * @return array content, count.
+	 */
+	public static function unlink( $content, $old ) {
+		$base  = self::origin();
+		$want  = HWCH_GSC::normalise( $old );
+		$count = 0;
+
+		$content = preg_replace_callback(
+			'/<a\s[^>]*?href\s*=\s*(["\'])([^"\']+)\1[^>]*>(.*?)<\/a>/is',
+			function ( $m ) use ( $want, $base, &$count ) {
+				$href = html_entity_decode( $m[2] );
+				$href = false !== strpos( $href, '#' ) ? substr( $href, 0, strpos( $href, '#' ) ) : $href;
+				$full = 0 === strpos( $href, '/' ) && 0 !== strpos( $href, '//' ) ? $base . $href : $href;
+
+				if ( '' === $href || HWCH_GSC::normalise( $full ) !== $want ) {
+					return $m[0];
+				}
+
+				++$count;
+
+				return $m[3];
+			},
+			(string) $content
+		);
+
+		return array( 'content' => $content, 'count' => $count );
+	}
+
+	/**
+	 * Broken links that can be removed: internal links that lead nowhere (not
+	 * ones that only redirect) and outbound links that failed their check.
+	 * Sites that block checks are never included.
+	 *
+	 * @param string $view internal or outbound.
+	 * @return array[] url, sources.
+	 */
+	public static function removable( $view ) {
+		if ( 'outbound' === $view ) {
+			$rows = self::outbound()['broken'];
+		} else {
+			$rows = array_filter(
+				self::internal(),
+				function ( $r ) {
+					return 'redirected' !== $r['problem'];
+				}
+			);
+		}
+
+		return array_values(
+			array_map(
+				function ( $r ) {
+					return array( 'url' => $r['url'], 'sources' => array_map( 'intval', (array) $r['sources'] ) );
+				},
+				$rows
+			)
+		);
+	}
+
+	/**
+	 * The "Remove all broken links" preview.
+	 *
+	 * @param string $view internal or outbound.
+	 * @return void
+	 */
+	private static function remove_all_preview( $view ) {
+		$rows     = self::removable( $view );
+		$articles = array();
+
+		foreach ( $rows as $r ) {
+			foreach ( $r['sources'] as $id ) {
+				$articles[ $id ] = true;
+			}
+		}
+
+		$back = admin_url( 'admin.php?page=hwch&tab=broken&view=' . $view );
+		?>
+		<div class="hwch-confirm">
+			<h3><?php esc_html_e( 'Remove all broken links?', 'hw-content-health' ); ?></h3>
+			<p>
+				<?php
+				/* translators: 1: links, 2: articles */
+				echo esc_html( sprintf( __( 'Broken addresses to unlink: %1$s. Articles that will change: %2$s. The linked words stay in each article; only the link goes. Every article\'s previous text is kept in the Log, so each one can be undone.', 'hw-content-health' ), number_format_i18n( count( $rows ) ), number_format_i18n( count( $articles ) ) ) );
+				?>
+			</p>
+			<?php if ( 'internal' === $view ) : ?>
+				<p class="hwch-muted"><?php esc_html_e( 'Links that only redirect are left alone: they still work, and "Update link" points them at the final page.', 'hw-content-health' ); ?></p>
+			<?php else : ?>
+				<p class="hwch-muted"><?php esc_html_e( 'Links to sites that block automated checks are left alone. A server error can be temporary, so check the list below first.', 'hw-content-health' ); ?></p>
+			<?php endif; ?>
+			<?php if ( $rows ) : ?>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="hwch-confirm-row">
+					<?php wp_nonce_field( 'hwch_action' ); ?>
+					<input type="hidden" name="action" value="hwch_remove_links">
+					<input type="hidden" name="view" value="<?php echo esc_attr( $view ); ?>">
+					<button class="button button-primary"><?php esc_html_e( 'Remove them all', 'hw-content-health' ); ?></button>
+					<a class="button" href="<?php echo esc_url( $back ); ?>"><?php esc_html_e( 'Cancel', 'hw-content-health' ); ?></a>
+				</form>
+			<?php else : ?>
+				<a class="button" href="<?php echo esc_url( $back ); ?>"><?php esc_html_e( 'Back', 'hw-content-health' ); ?></a>
+			<?php endif; ?>
+			<ul class="hwch-list">
+				<?php foreach ( array_slice( $rows, 0, 200 ) as $r ) : ?>
+					<?php /* translators: %s: number */ ?>
+					<li class="hwch-url"><?php echo esc_html( rawurldecode( $r['url'] ) ); ?> <span class="hwch-muted"><?php echo esc_html( sprintf( _n( 'in %s article', 'in %s articles', count( $r['sources'] ), 'hw-content-health' ), number_format_i18n( count( $r['sources'] ) ) ) ); ?></span></li>
+				<?php endforeach; ?>
+			</ul>
+		</div>
+		<?php
+	}
+
+	/**
+	 * The Remove link and Remove all buttons.
+	 *
+	 * @param string $url  Link, or '' for the Remove all button.
+	 * @param string $view internal or outbound.
+	 * @return void
+	 */
+	private static function remove_button( $url, $view ) {
+		if ( '' === $url ) {
+			echo '<a class="button" href="' . esc_url( admin_url( 'admin.php?page=hwch&tab=broken&view=' . $view . '&remove_all=1' ) ) . '">' . esc_html__( 'Remove all broken links', 'hw-content-health' ) . '</a>';
+			return;
+		}
+		?>
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" onsubmit="return confirm('<?php echo esc_js( __( 'Remove this link from every article it is in? The words stay; only the link goes.', 'hw-content-health' ) ); ?>');">
+			<?php wp_nonce_field( 'hwch_action' ); ?>
+			<input type="hidden" name="action" value="hwch_remove_links">
+			<input type="hidden" name="view" value="<?php echo esc_attr( $view ); ?>">
+			<input type="hidden" name="url" value="<?php echo esc_attr( $url ); ?>">
+			<button class="button button-small"><?php esc_html_e( 'Remove link', 'hw-content-health' ); ?></button>
+		</form>
+		<?php
+	}
+
+	/**
 	 * Renders the tab.
 	 *
 	 * @return void
@@ -923,7 +1061,10 @@ class HWCH_Broken {
 		</ul>
 		<div class="clear"></div>
 		<?php
-		if ( 'internal' === $view ) {
+		// phpcs:ignore WordPress.Security.NonceVerification
+		if ( ! empty( $_GET['remove_all'] ) && in_array( $view, array( 'internal', 'outbound' ), true ) ) {
+			self::remove_all_preview( $view );
+		} elseif ( 'internal' === $view ) {
 			self::view_internal( self::internal( $refresh ), $paged );
 		} elseif ( 'outbound' === $view ) {
 			self::view_outbound( $paged );
@@ -997,6 +1138,7 @@ class HWCH_Broken {
 			<p class="hwch-empty"><?php esc_html_e( 'Every internal link checked points to a live page. Blog pages that are not articles are checked over time with the outbound links, so a few may still appear later.', 'hw-content-health' ); ?></p>
 			<?php return; ?>
 		<?php endif; ?>
+		<p><?php self::remove_button( '', 'internal' ); ?></p>
 		<table class="widefat striped hwch-table">
 			<thead>
 				<tr>
@@ -1036,6 +1178,9 @@ class HWCH_Broken {
 							<?php
 							$fixable = $row['final'] && in_array( $row['problem'], array( 'redirected', 'term' ), true );
 							self::sources( $row['sources'], $fixable ? $row['url'] : '', $fixable ? $row['final'] : '' );
+							if ( 'redirected' !== $row['problem'] ) {
+								self::remove_button( $row['url'], 'internal' );
+							}
 							?>
 						</td>
 					</tr>
@@ -1086,6 +1231,7 @@ class HWCH_Broken {
 			?>
 		</p>
 		<?php if ( $total ) : ?>
+			<p><?php self::remove_button( '', 'outbound' ); ?></p>
 			<table class="widefat striped hwch-table">
 				<thead>
 					<tr>
@@ -1101,7 +1247,7 @@ class HWCH_Broken {
 							<td class="hwch-url"><a href="<?php echo esc_url( $row['url'] ); ?>" target="_blank" rel="noopener nofollow"><?php echo esc_html( rawurldecode( $row['url'] ) ); ?></a></td>
 							<td><span class="hwch-status hwch-status--late"><?php echo esc_html( self::describe( $row ) ); ?></span></td>
 							<td><?php echo esc_html( date_i18n( get_option( 'date_format' ), strtotime( $row['checked_at'] . ' UTC' ) ) ); ?></td>
-							<td><?php self::sources( $row['sources'] ); ?></td>
+							<td class="hwch-actions"><?php self::sources( $row['sources'] ); ?><?php self::remove_button( $row['url'], 'outbound' ); ?></td>
 						</tr>
 					<?php endforeach; ?>
 				</tbody>

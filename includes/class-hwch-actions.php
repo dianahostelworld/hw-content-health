@@ -21,7 +21,7 @@ class HWCH_Actions {
 	 * @return void
 	 */
 	public static function init() {
-		foreach ( array( 'sync', 'queue', 'dismiss', 'unpublish', 'redirect', 'undo', 'merge', 'seo_title', 'fine', 'refreshed', 'add_tag', 'merge_tags', 'post_title', 'meta_desc', 'season_fetch', 'check_links', 'redirect_404', 'ignore_404', 'fix_chain', 'fix_link', 'plan_add', 'plan_update', 'plan_delete', 'plan_draft', 'gap_dismiss' ) as $action ) {
+		foreach ( array( 'sync', 'queue', 'dismiss', 'unpublish', 'redirect', 'undo', 'merge', 'seo_title', 'fine', 'refreshed', 'add_tag', 'merge_tags', 'post_title', 'meta_desc', 'season_fetch', 'check_links', 'redirect_404', 'ignore_404', 'fix_chain', 'fix_link', 'plan_add', 'plan_update', 'plan_delete', 'plan_draft', 'gap_dismiss', 'remove_links', 'retire' ) as $action ) {
 			add_action( 'admin_post_hwch_' . $action, array( __CLASS__, $action ) );
 		}
 
@@ -657,6 +657,124 @@ class HWCH_Actions {
 	}
 
 	/**
+	 * Removes broken links from articles, keeping the linked words: one
+	 * address (url), or every removable one on a tab. Each changed article is
+	 * logged with its previous text, so it can be undone.
+	 *
+	 * @return void
+	 */
+	public static function remove_links() {
+		self::guard();
+
+		// phpcs:disable WordPress.Security.NonceVerification
+		$view = isset( $_POST['view'] ) && 'outbound' === $_POST['view'] ? 'outbound' : 'internal';
+		$one  = isset( $_POST['url'] ) ? esc_url_raw( wp_unslash( $_POST['url'] ) ) : '';
+		// phpcs:enable
+
+		if ( function_exists( 'set_time_limit' ) ) {
+			@set_time_limit( 300 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+		}
+
+		// Group by article, so each article is saved and logged once.
+		$by_post = array();
+
+		foreach ( HWCH_Broken::removable( $view ) as $row ) {
+			if ( $one && HWCH_GSC::normalise( $one ) !== HWCH_GSC::normalise( $row['url'] ) ) {
+				continue;
+			}
+			foreach ( $row['sources'] as $id ) {
+				$by_post[ $id ][] = $row['url'];
+			}
+		}
+
+		$links = 0;
+		$posts = 0;
+
+		foreach ( $by_post as $post_id => $urls ) {
+			$post = get_post( $post_id );
+
+			if ( ! $post || ! current_user_can( 'edit_post', $post_id ) ) {
+				continue;
+			}
+
+			$content = $post->post_content;
+			$n       = 0;
+
+			foreach ( array_unique( $urls ) as $url ) {
+				$r       = HWCH_Broken::unlink( $content, $url );
+				$content = $r['content'];
+				$n      += $r['count'];
+			}
+
+			if ( ! $n ) {
+				continue;
+			}
+
+			wp_update_post( wp_slash( array( 'ID' => $post_id, 'post_content' => $content ) ) );
+			self::log(
+				$post_id,
+				'remove_link',
+				array(
+					'urls'     => array_values( array_unique( $urls ) ),
+					'count'    => $n,
+					'previous' => base64_encode( gzcompress( $post->post_content ) ), // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions
+					'after'    => md5( (string) get_post_field( 'post_content', $post_id, 'raw' ) ),
+				)
+			);
+			$links += $n;
+			$posts++;
+		}
+
+		delete_transient( 'hwch_broken_scan' );
+		delete_transient( 'hwch_broken_internal' );
+		delete_transient( 'hwch_links' );
+		set_transient( 'hwch_removed_' . get_current_user_id(), array( $links, $posts ), 120 );
+
+		wp_safe_redirect( admin_url( 'admin.php?page=hwch&tab=broken&view=' . $view . '&hwch_msg=links_removed' ) );
+		exit;
+	}
+
+	/**
+	 * Redirects the ticked articles from Retire articles, each to its own
+	 * target, and moves them to draft. Each can be undone from the Log.
+	 *
+	 * @return void
+	 */
+	public static function retire() {
+		self::guard();
+
+		// phpcs:disable WordPress.Security.NonceVerification
+		$ids     = isset( $_POST['ids'] ) ? array_map( 'absint', (array) $_POST['ids'] ) : array();
+		$targets = isset( $_POST['target'] ) ? (array) wp_unslash( $_POST['target'] ) : array();
+		$phrase  = isset( $_POST['phrase'] ) ? sanitize_text_field( wp_unslash( $_POST['phrase'] ) ) : '';
+		// phpcs:enable
+
+		if ( function_exists( 'set_time_limit' ) ) {
+			@set_time_limit( 300 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+		}
+
+		$done = 0;
+		$bad  = 0;
+
+		foreach ( $ids as $id ) {
+			$target = isset( $targets[ $id ] ) ? esc_url_raw( trim( (string) $targets[ $id ] ) ) : '';
+			$target = $target && 0 === strpos( $target, '/' ) ? home_url( $target ) : $target;
+
+			if ( self::redirect_post( $id, $target ) ) {
+				$done++;
+			} else {
+				$bad++;
+			}
+		}
+
+		delete_transient( 'hwch_onpage' );
+		set_transient( 'hwch_retired_' . get_current_user_id(), array( $done, $bad ), 120 );
+
+		wp_safe_redirect( admin_url( 'admin.php?page=hwch&tab=retire&hwch_msg=retired&phrase=' . rawurlencode( $phrase ) ) );
+		exit;
+	}
+
+	/**
 	 * Adds an article to the content plan: a gap (destination and topic,
 	 * with its evidence) or an idea typed in.
 	 *
@@ -1004,6 +1122,19 @@ class HWCH_Actions {
 				wp_update_post( wp_slash( array( 'ID' => $post_id, 'post_content' => gzuncompress( base64_decode( $details['previous'] ) ) ) ) ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions
 				delete_transient( 'hwch_broken_scan' );
 		delete_transient( 'hwch_broken_internal' );
+				delete_transient( 'hwch_links' );
+				break;
+
+			case 'remove_link':
+				$current = (string) get_post_field( 'post_content', $post_id, 'raw' );
+
+				if ( md5( $current ) !== $details['after'] ) {
+					self::back( 'undo_changed', 'log' );
+				}
+
+				wp_update_post( wp_slash( array( 'ID' => $post_id, 'post_content' => gzuncompress( base64_decode( $details['previous'] ) ) ) ) ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions
+				delete_transient( 'hwch_broken_scan' );
+				delete_transient( 'hwch_broken_internal' );
 				delete_transient( 'hwch_links' );
 				break;
 

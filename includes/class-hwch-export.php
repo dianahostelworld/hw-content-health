@@ -30,7 +30,7 @@ class HWCH_Export {
 	 *
 	 * @var array
 	 */
-	const SKIP = array( 'todo', 'settings', 'brief' );
+	const SKIP = array( 'todo', 'settings', 'brief', 'import' );
 
 	/**
 	 * Query arguments that must not be carried into an export: paging (an

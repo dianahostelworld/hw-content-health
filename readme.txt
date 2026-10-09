@@ -1,5 +1,5 @@
 === Hostelworld Content Health ===
-Version: 1.13.0
+Version: 1.16.0
 
 Finds blog articles worth refreshing and articles with no search traffic, using
 Google Search Console data. Menu: Content health.
@@ -331,6 +331,28 @@ sync stops and the error says so; click Connect with Google to sign in again.
   fetches up to 15 months of monthly figures.
 
 == Changelog ==
+
+1.16.0
+- Health score out of 100 at the top of To-do and as a Dashboard tile.
+  Four areas, each the share of published English articles without that
+  problem: Freshness 35%, On-page basics 25%, Links 20%, Clean-up 20%.
+  Saved weekly, with the change since last week and a 12-week trend.
+
+1.15.0
+- Broken links: Remove link on each broken internal and outbound link, and
+  Remove all broken links with a preview first. The linked words stay;
+  each article can be undone from the Log.
+- New Retire articles page (Clean up): find published articles with a
+  phrase in the title or address ("best hostels in" to start) and redirect
+  the ticked ones, each to its destination hub or the blog homepage, or any
+  address you type.
+
+1.14.0
+- New Import page (Data > Import): download a template of missing meta
+  descriptions, missing SEO titles or duplicate titles, fill it in and upload
+  it. A preview shows what will change; existing values are only replaced if
+  you tick the box. Every change is in the Log, and a whole import can be
+  undone at once.
 
 1.13.0
 - Works with Trailhead (when it is active). Content planner: Create draft

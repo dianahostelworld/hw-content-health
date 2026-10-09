@@ -255,6 +255,8 @@ class HWCH_Todo {
 			</div>
 		</div>
 
+		<?php HWCH_Score::render_block(); ?>
+
 		<div class="hwch-todo">
 			<section class="hwch-todo-list" aria-label="<?php esc_attr_e( 'To-do', 'hw-content-health' ); ?>">
 				<?php if ( ! $todo ) : ?>

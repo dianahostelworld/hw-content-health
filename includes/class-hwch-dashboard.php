@@ -273,6 +273,21 @@ class HWCH_Dashboard {
 			self::kpi( __( 'Impressions', 'hw-content-health' ), number_format_i18n( $now['impressions'] ), HWCH_Chart::change( $now['impressions'], $was['impressions'] ) );
 			self::kpi( __( 'CTR', 'hw-content-health' ), number_format_i18n( $now['ctr'] * 100, 2 ) . '%', HWCH_Chart::change( $now['ctr'], $was['ctr'] ) );
 			self::kpi( __( 'Avg. position', 'hw-content-health' ), number_format_i18n( $now['position'], 1 ), HWCH_Chart::change( $now['position'], $was['position'], 'position' ) );
+			try {
+				$hs = HWCH_Score::get();
+			} catch ( Throwable $e ) {
+				$hs = null;
+			}
+			if ( $hs && null !== $hs['score'] ) {
+				printf(
+					'<a class="hwch-kpi hwch-kpi--score" href="%1$s"><div class="hwch-kpi-label">%2$s</div><div class="hwch-kpi-value hwch-band--%3$s">%4$s<span>/100</span></div><div class="hwch-kpi-change">%5$s</div></a>',
+					esc_url( admin_url( 'admin.php?page=hwch&tab=todo' ) ),
+					esc_html__( 'Health score', 'hw-content-health' ),
+					esc_attr( HWCH_Score::band( $hs['score'] ) ),
+					esc_html( $hs['score'] ),
+					HWCH_Score::change_html( HWCH_Score::change( $hs['score'] ) ) // phpcs:ignore WordPress.Security.EscapeOutput
+				);
+			}
 			?>
 		</div>
 
