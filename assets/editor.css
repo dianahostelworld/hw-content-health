@@ -1,0 +1,21 @@
+.hwch-ed .hwch-ed-section { margin: 0 0 16px; }
+.hwch-ed .hwch-ed-heading { font-size: 12px; font-weight: 600; margin: 0 0 6px; }
+.hwch-ed .hwch-ed-list { margin: 0; padding: 0; list-style: none; }
+.hwch-ed .hwch-ed-list li { margin: 0 0 8px; line-height: 1.4; }
+.hwch-ed .hwch-ed-strong { border-left: 3px solid #d63638; padding-left: 8px; }
+.hwch-ed .hwch-ed-muted { color: #757575; font-size: 12px; }
+.hwch-ed .hwch-ed-label { font-size: 12px; margin: 8px 0 4px; }
+.hwch-ed .hwch-ed-error { color: #b32d2e; }
+.hwch-ed .hwch-ed-tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; background: #f0f6fc; color: #135e96; font-size: 11px; }
+.hwch-ed .hwch-ed-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin-bottom: 8px; }
+.hwch-ed .hwch-ed-kpis strong { display: block; font-size: 16px; }
+.hwch-ed .hwch-ed-kpis span { color: #757575; font-size: 11px; }
+.hwch-ed .hwch-ed-up { color: #007017; }
+.hwch-ed .hwch-ed-down { color: #b32d2e; }
+.hwch-ed .hwch-ed-season { background: #f0f6fc; padding: 6px 8px; border-radius: 2px; font-size: 12px; }
+.hwch-ed .hwch-ed-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 6px; }
+.hwch-ed .hwch-ed-table th, .hwch-ed .hwch-ed-table td { text-align: left; padding: 3px 4px 3px 0; vertical-align: top; }
+.hwch-ed .hwch-ed-table th { color: #757575; font-weight: 600; }
+.hwch-ed .hwch-ed-table td:first-child { overflow-wrap: anywhere; }
+.hwch-ed .hwch-ed-again { margin: 0; }
+.hwch-ed-sidebar { padding: 16px; }
